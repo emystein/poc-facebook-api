@@ -28,20 +28,39 @@ class FacebookOAuthController(
     fun getAuthorizationUrl(): Map<String, String> {
         val scope = "public_profile,email"
         val state = generateRandomState()
-        
+
         val authUrl = "https://www.facebook.com/v18.0/dialog/oauth?" +
                 "client_id=${facebookConfig.app.id}" +
                 "&redirect_uri=${URLEncoder.encode(facebookConfig.redirect.uri, StandardCharsets.UTF_8)}" +
                 "&scope=${URLEncoder.encode(scope, StandardCharsets.UTF_8)}" +
                 "&state=$state" +
                 "&response_type=code"
-        
-        return mapOf("authUrl" to authUrl)
+
+        return mapOf(
+            "authUrl" to authUrl,
+            "appId" to facebookConfig.app.id,
+            "redirectUri" to facebookConfig.redirect.uri,
+            "scope" to scope
+        )
     }
 
     @GetMapping("/oauth/callback")
-    @ResponseBody
     fun handleCallback(
+        @RequestParam(required = false) code: String?,
+        @RequestParam(required = false) error: String?,
+        @RequestParam(required = false) state: String?,
+        model: Model
+    ): String {
+        // Always return the callback template for browser requests
+        model.addAttribute("isCallback", true)
+        model.addAttribute("code", code)
+        model.addAttribute("error", error)
+        return "callback"
+    }
+
+    @GetMapping("/api/oauth/token")
+    @ResponseBody
+    fun exchangeCodeForTokenApi(
         @RequestParam code: String,
         @RequestParam(required = false) state: String?
     ): Map<String, Any> {
@@ -62,20 +81,35 @@ class FacebookOAuthController(
     }
 
     private fun exchangeCodeForToken(code: String): String {
-        val tokenUrl = "https://graph.facebook.com/v18.0/oauth/access_token?" +
-                "client_id=${facebookConfig.app.id}" +
+        val tokenUrl = "https://graph.facebook.com/v18.0/oauth/access_token"
+
+        val formData = "client_id=${facebookConfig.app.id}" +
                 "&client_secret=${facebookConfig.app.secret}" +
                 "&redirect_uri=${URLEncoder.encode(facebookConfig.redirect.uri, StandardCharsets.UTF_8)}" +
-                "&code=$code"
+                "&code=$code" +
+                "&grant_type=authorization_code"
 
-        val response = webClient.get()
-            .uri(tokenUrl)
-            .retrieve()
-            .bodyToMono(Map::class.java)
-            .block()
+        val response = try {
+            webClient.post()
+                .uri(tokenUrl)
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .bodyValue(formData)
+                .retrieve()
+                .bodyToMono(Map::class.java)
+                .block()
+        } catch (e: Exception) {
+            throw RuntimeException("Facebook API error: ${e.message}", e)
+        }
 
-        return response?.get("access_token")?.toString() 
-            ?: throw RuntimeException("Failed to get access token from Facebook")
+        if (response?.containsKey("error") == true) {
+            val error = response["error"] as? Map<*, *>
+            val errorMessage = error?.get("message") ?: "Unknown Facebook error"
+            val errorType = error?.get("type") ?: "Unknown"
+            throw RuntimeException("Facebook OAuth error: $errorType - $errorMessage")
+        }
+
+        return response?.get("access_token")?.toString()
+            ?: throw RuntimeException("No access token in Facebook response: $response")
     }
 
     private fun generateRandomState(): String {

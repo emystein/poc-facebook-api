@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Callback</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+            background-color: #f8f9fa;
+        }
+        .callback-container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+        .loading {
+            color: #007bff;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="callback-container">
+        <div id="errorSection" class="error" style="display: none;">
+            <h2>❌ OAuth Error</h2>
+            <p id="errorMessage">Error occurred</p>
+            <p>This window will close automatically...</p>
+        </div>
+
+        <div id="loadingSection" class="loading">
+            <h2>🔄 Processing OAuth</h2>
+            <div class="spinner"></div>
+            <p>Exchanging authorization code for access token...</p>
+            <p>This window will close automatically when complete.</p>
+        </div>
+
+        <div id="invalidSection" class="error" style="display: none;">
+            <h2>❌ Invalid Callback</h2>
+            <p>No authorization code or error received.</p>
+            <p>This window will close automatically...</p>
+        </div>
+    </div>
+
+    <script th:inline="javascript">
+        console.log('OAuth callback page loaded');
+
+        const code = /*[[${code}]]*/ '';
+        const error = /*[[${error}]]*/ '';
+
+        // Function to close popup with multiple attempts
+        function closePopup() {
+            console.log('Attempting to close popup');
+            try {
+                window.close();
+            } catch (e) {
+                console.log('Direct close failed:', e);
+            }
+
+            // Fallback attempts
+            setTimeout(() => {
+                try {
+                    window.close();
+                } catch (e) {
+                    console.log('Delayed close failed:', e);
+                    // Last resort: redirect to blank page
+                    window.location.href = 'about:blank';
+                }
+            }, 100);
+        }
+
+        // Show appropriate section based on URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlCode = urlParams.get('code');
+        const urlError = urlParams.get('error');
+
+        if (urlError) {
+            console.log('OAuth error:', urlError);
+            document.getElementById('loadingSection').style.display = 'none';
+            document.getElementById('errorSection').style.display = 'block';
+            document.getElementById('errorMessage').textContent = urlError;
+
+            if (window.opener) {
+                window.opener.postMessage({
+                    success: false,
+                    error: urlError
+                }, window.location.origin);
+            }
+            setTimeout(closePopup, 2000);
+
+        } else if (urlCode) {
+            console.log('OAuth code received, exchanging for token');
+
+            // Exchange code for token
+            fetch('/api/oauth/token?code=' + encodeURIComponent(urlCode))
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Token exchange response:', data);
+                    if (window.opener) {
+                        window.opener.postMessage(data, window.location.origin);
+                    }
+
+                    // Show success message briefly before closing
+                    document.querySelector('.callback-container').innerHTML = `
+                        <div class="success">
+                            <h2>✅ Success!</h2>
+                            <p>Access token obtained successfully.</p>
+                            <p>Closing window...</p>
+                        </div>
+                    `;
+
+                    setTimeout(closePopup, 1500);
+                })
+                .catch(error => {
+                    console.log('Token exchange error:', error);
+                    if (window.opener) {
+                        window.opener.postMessage({
+                            success: false,
+                            error: error.message
+                        }, window.location.origin);
+                    }
+
+                    // Show error message
+                    document.querySelector('.callback-container').innerHTML = `
+                        <div class="error">
+                            <h2>❌ Token Exchange Failed</h2>
+                            <p>${error.message}</p>
+                            <p>Closing window...</p>
+                        </div>
+                    `;
+
+                    setTimeout(closePopup, 2000);
+                });
+
+        } else {
+            console.log('No code or error in callback');
+            document.getElementById('loadingSection').style.display = 'none';
+            document.getElementById('invalidSection').style.display = 'block';
+            setTimeout(closePopup, 2000);
+        }
+    </script>
+</body>
+</html>

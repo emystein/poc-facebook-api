@@ -54,11 +54,33 @@
         .token-section {
             margin-top: 30px;
         }
-        label {
-            display: block;
+        .token-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 10px;
+        }
+        label {
             font-weight: bold;
             color: #333;
+            margin: 0;
+        }
+        #copyBtn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            font-size: 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #copyBtn:hover {
+            background-color: #218838;
+        }
+        #copyBtn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
         }
         #tokenTextArea {
             width: 100%;
@@ -110,11 +132,11 @@
 <body>
     <div class="container">
         <h1>Facebook OAuth2 Token Generator</h1>
-        
+
         <div class="info">
             <strong>Facebook App ID:</strong> <span th:text="${facebookAppId}">Not configured</span>
         </div>
-        
+
         <div class="info">
             <p><strong>Instructions:</strong></p>
             <ol>
@@ -135,7 +157,10 @@
         </div>
 
         <div class="token-section">
-            <label for="tokenTextArea">Facebook Access Token:</label>
+            <div class="token-header">
+                <label for="tokenTextArea">Facebook Access Token:</label>
+                <button id="copyBtn" onclick="copyToken()" disabled>📋 Copy Token</button>
+            </div>
             <textarea id="tokenTextArea" placeholder="Your Facebook access token will appear here after successful OAuth2 flow..." readonly></textarea>
         </div>
 
@@ -147,11 +172,11 @@
             const btn = document.getElementById('getTokenBtn');
             const loading = document.getElementById('loading');
             const status = document.getElementById('status');
-            
+
             btn.disabled = true;
             loading.style.display = 'block';
             status.style.display = 'none';
-            
+
             // Get authorization URL from backend
             fetch('/oauth/authorize')
                 .then(response => response.json())
@@ -163,7 +188,7 @@
                             'facebook-oauth',
                             'width=600,height=600,scrollbars=yes,resizable=yes'
                         );
-                        
+
                         // Listen for popup to close or receive message
                         const checkClosed = setInterval(() => {
                             if (popup.closed) {
@@ -173,23 +198,69 @@
                                 showStatus('OAuth window was closed. Please try again.', 'error');
                             }
                         }, 1000);
-                        
+
                         // Listen for messages from popup
-                        window.addEventListener('message', function(event) {
+                        const messageHandler = function(event) {
                             if (event.origin !== window.location.origin) return;
-                            
+
+                            console.log('Received message from popup:', event.data);
                             clearInterval(checkClosed);
-                            popup.close();
                             btn.disabled = false;
                             loading.style.display = 'none';
-                            
+
                             if (event.data.success) {
-                                document.getElementById('tokenTextArea').value = event.data.accessToken;
-                                showStatus('Successfully obtained Facebook access token!', 'success');
+                                // Automatically paste the token into the text area
+                                const tokenTextArea = document.getElementById('tokenTextArea');
+                                tokenTextArea.value = event.data.accessToken;
+
+                                // Highlight the text area briefly to show it was updated
+                                tokenTextArea.style.backgroundColor = '#d4edda';
+                                tokenTextArea.style.border = '2px solid #28a745';
+
+                                // Reset highlighting after 2 seconds
+                                setTimeout(() => {
+                                    tokenTextArea.style.backgroundColor = '';
+                                    tokenTextArea.style.border = '2px solid #ddd';
+                                }, 2000);
+
+                                showStatus('✅ Successfully obtained Facebook access token! Token has been automatically pasted below.', 'success');
+
+                                // Enable the copy button
+                                document.getElementById('copyBtn').disabled = false;
+
+                                // Force close popup from parent side as backup
+                                setTimeout(() => {
+                                    try {
+                                        if (popup && !popup.closed) {
+                                            console.log('Force closing popup from parent');
+                                            popup.close();
+                                        }
+                                    } catch (e) {
+                                        console.log('Could not force close popup:', e);
+                                    }
+                                }, 1500);
+
                             } else {
-                                showStatus('Error: ' + (event.data.error || 'Unknown error'), 'error');
+                                showStatus('❌ Error: ' + (event.data.error || 'Unknown error'), 'error');
+
+                                // Force close popup on error too
+                                setTimeout(() => {
+                                    try {
+                                        if (popup && !popup.closed) {
+                                            console.log('Force closing popup after error');
+                                            popup.close();
+                                        }
+                                    } catch (e) {
+                                        console.log('Could not force close popup after error:', e);
+                                    }
+                                }, 500);
                             }
-                        });
+
+                            // Remove the event listener after handling
+                            window.removeEventListener('message', messageHandler);
+                        };
+
+                        window.addEventListener('message', messageHandler);
                     } else {
                         throw new Error('Failed to get authorization URL');
                     }
@@ -200,40 +271,46 @@
                     showStatus('Error: ' + error.message, 'error');
                 });
         }
-        
+
         function showStatus(message, type) {
             const status = document.getElementById('status');
             status.textContent = message;
             status.className = 'status ' + type;
             status.style.display = 'block';
         }
-        
-        // Check if we're in the callback popup
-        if (window.location.pathname === '/oauth/callback') {
-            const urlParams = new URLSearchParams(window.location.search);
-            const code = urlParams.get('code');
-            const error = urlParams.get('error');
-            
-            if (error) {
-                window.opener.postMessage({
-                    success: false,
-                    error: error
-                }, window.location.origin);
-            } else if (code) {
-                // Exchange code for token
-                fetch('/oauth/callback?code=' + encodeURIComponent(code))
-                    .then(response => response.json())
-                    .then(data => {
-                        window.opener.postMessage(data, window.location.origin);
-                    })
-                    .catch(error => {
-                        window.opener.postMessage({
-                            success: false,
-                            error: error.message
-                        }, window.location.origin);
-                    });
+
+        function copyToken() {
+            const tokenTextArea = document.getElementById('tokenTextArea');
+            const copyBtn = document.getElementById('copyBtn');
+
+            if (tokenTextArea.value.trim() === '') {
+                showStatus('❌ No token to copy!', 'error');
+                return;
             }
+
+            // Copy to clipboard
+            navigator.clipboard.writeText(tokenTextArea.value).then(() => {
+                // Update button text temporarily
+                const originalText = copyBtn.innerHTML;
+                copyBtn.innerHTML = '✅ Copied!';
+                copyBtn.style.backgroundColor = '#28a745';
+
+                // Reset button after 2 seconds
+                setTimeout(() => {
+                    copyBtn.innerHTML = originalText;
+                    copyBtn.style.backgroundColor = '#28a745';
+                }, 2000);
+
+                showStatus('✅ Token copied to clipboard!', 'success');
+            }).catch(err => {
+                // Fallback for older browsers
+                tokenTextArea.select();
+                document.execCommand('copy');
+                showStatus('✅ Token copied to clipboard!', 'success');
+            });
         }
+
+
     </script>
 </body>
 </html>
