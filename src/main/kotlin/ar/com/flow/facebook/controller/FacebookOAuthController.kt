@@ -17,6 +17,9 @@ class FacebookOAuthController(
 
     private val webClient = WebClient.builder().build()
 
+    // Simple in-memory token storage (in production, use database or session)
+    private var storedAccessToken: String? = null
+
     @GetMapping("/")
     fun index(model: Model): String {
         model.addAttribute("facebookAppId", facebookConfig.app.id)
@@ -66,6 +69,8 @@ class FacebookOAuthController(
     ): Map<String, Any> {
         return try {
             val accessToken = exchangeCodeForToken(code)
+            // Store the token for later use
+            storedAccessToken = accessToken
             mapOf(
                 "success" to true,
                 "accessToken" to accessToken,
@@ -110,6 +115,69 @@ class FacebookOAuthController(
 
         return response?.get("access_token")?.toString()
             ?: throw RuntimeException("No access token in Facebook response: $response")
+    }
+
+    @GetMapping("/friends")
+    fun friendsPage(model: Model): String {
+        model.addAttribute("hasToken", storedAccessToken != null)
+        model.addAttribute("facebookAppId", facebookConfig.app.id)
+        return "friends"
+    }
+
+    @GetMapping("/api/friends")
+    @ResponseBody
+    fun getFriends(): Map<String, Any> {
+        return if (storedAccessToken != null) {
+            try {
+                val friends = fetchFacebookFriends(storedAccessToken!!)
+                mapOf(
+                    "success" to true,
+                    "friends" to friends,
+                    "message" to "Successfully retrieved friends list"
+                )
+            } catch (e: Exception) {
+                mapOf(
+                    "success" to false,
+                    "error" to (e.message ?: "Unknown error occurred"),
+                    "message" to "Failed to retrieve friends list"
+                )
+            }
+        } else {
+            mapOf(
+                "success" to false,
+                "error" to "No access token available",
+                "message" to "Please authenticate with Facebook first"
+            )
+        }
+    }
+
+    @GetMapping("/api/token/status")
+    @ResponseBody
+    fun getTokenStatus(): Map<String, Any> {
+        return mapOf(
+            "hasToken" to (storedAccessToken != null),
+            "token" to (storedAccessToken ?: "")
+        )
+    }
+
+    private fun fetchFacebookFriends(accessToken: String): List<Map<String, Any>> {
+        val friendsUrl = "https://graph.facebook.com/v18.0/me/friends?access_token=$accessToken"
+
+        val response = webClient.get()
+            .uri(friendsUrl)
+            .retrieve()
+            .bodyToMono(Map::class.java)
+            .block()
+
+        if (response?.containsKey("error") == true) {
+            val error = response["error"] as? Map<*, *>
+            val errorMessage = error?.get("message") ?: "Unknown Facebook error"
+            throw RuntimeException("Facebook API error: $errorMessage")
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        val data = response?.get("data") as? List<Map<String, Any>> ?: emptyList()
+        return data
     }
 
     private fun generateRandomState(): String {
