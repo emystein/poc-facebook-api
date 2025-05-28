@@ -31,7 +31,7 @@ class FacebookOAuthController(
     @GetMapping("/oauth/authorize")
     @ResponseBody
     fun getAuthorizationUrl(): Map<String, String> {
-        val scope = "public_profile,email"
+        val scope = facebookConfig.oauth.scope
         val state = generateRandomState()
 
         val authUrl = "https://www.facebook.com/v18.0/dialog/oauth?" +
