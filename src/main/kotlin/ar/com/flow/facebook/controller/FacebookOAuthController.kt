@@ -4,6 +4,8 @@ import ar.com.flow.facebook.config.FacebookConfig
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseBody
 import org.springframework.web.reactive.function.client.WebClient
@@ -131,6 +133,13 @@ class FacebookOAuthController(
         return "posts"
     }
 
+    @GetMapping("/post")
+    fun createPostPage(model: Model): String {
+        model.addAttribute("hasToken", storedAccessToken != null)
+        model.addAttribute("facebookAppId", facebookConfig.app.id)
+        return "post"
+    }
+
     @GetMapping("/api/friends")
     @ResponseBody
     fun getFriends(): Map<String, Any> {
@@ -174,6 +183,42 @@ class FacebookOAuthController(
                     "success" to false,
                     "error" to (e.message ?: "Unknown error occurred"),
                     "message" to "Failed to retrieve posts list"
+                )
+            }
+        } else {
+            mapOf(
+                "success" to false,
+                "error" to "No access token available",
+                "message" to "Please authenticate with Facebook first"
+            )
+        }
+    }
+
+    @PostMapping("/api/post")
+    @ResponseBody
+    fun createPost(@RequestBody postData: Map<String, String>): Map<String, Any> {
+        return if (storedAccessToken != null) {
+            try {
+                val message = postData["message"] ?: ""
+                if (message.isBlank()) {
+                    return mapOf(
+                        "success" to false,
+                        "error" to "Post message cannot be empty",
+                        "message" to "Please enter some content for your post"
+                    )
+                }
+
+                val result = createFacebookPost(storedAccessToken!!, message)
+                mapOf(
+                    "success" to true,
+                    "postId" to (result["id"] ?: ""),
+                    "message" to "Successfully created Facebook post"
+                )
+            } catch (e: Exception) {
+                mapOf(
+                    "success" to false,
+                    "error" to (e.message ?: "Unknown error occurred"),
+                    "message" to "Failed to create post"
                 )
             }
         } else {
@@ -233,6 +278,56 @@ class FacebookOAuthController(
         val data = response?.get("data") as? List<Map<String, Any>> ?: emptyList()
         return data
     }
+
+    private fun createFacebookPost(accessToken: String, message: String): Map<String, Any> {
+        // Facebook has restricted posting permissions for security reasons.
+        // Personal feed posting requires special permissions that need Facebook app review.
+        // For demonstration purposes, we'll attempt the API call and provide helpful error messages.
+
+        try {
+            return postToUserFeed(accessToken, message)
+        } catch (e: Exception) {
+            // Provide a helpful error message explaining Facebook's restrictions
+            throw RuntimeException(
+                "Facebook posting failed: ${e.message}. " +
+                "Note: Facebook requires special permissions and app review for posting to user feeds. " +
+                "This is a security measure to prevent spam and unauthorized posting. " +
+                "For production apps, you would need to submit your app for Facebook review " +
+                "and request 'publish_actions' or similar permissions.", e
+            )
+        }
+    }
+
+    private fun postToUserFeed(accessToken: String, message: String): Map<String, Any> {
+        val postUrl = "https://graph.facebook.com/v18.0/me/feed"
+
+        val formData = "message=${URLEncoder.encode(message, StandardCharsets.UTF_8)}" +
+                "&access_token=$accessToken"
+
+        val response = try {
+            webClient.post()
+                .uri(postUrl)
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .bodyValue(formData)
+                .retrieve()
+                .bodyToMono(Map::class.java)
+                .block()
+        } catch (e: Exception) {
+            throw RuntimeException("Facebook API error: ${e.message}", e)
+        }
+
+        if (response?.containsKey("error") == true) {
+            val error = response["error"] as? Map<*, *>
+            val errorMessage = error?.get("message") ?: "Unknown Facebook error"
+            val errorType = error?.get("type") ?: "Unknown"
+            throw RuntimeException("Facebook API error: $errorType - $errorMessage")
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        return response as? Map<String, Any> ?: throw RuntimeException("Invalid response from Facebook API")
+    }
+
+
 
     private fun generateRandomState(): String {
         return (1..16)

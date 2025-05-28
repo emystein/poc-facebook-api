@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Post - Facebook OAuth App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background-color: #1877f2;
+            color: white;
+            padding: 1rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+        }
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        .nav-menu {
+            display: flex;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            gap: 2rem;
+        }
+        .nav-menu a {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .nav-menu a:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+        .nav-menu a.active {
+            background-color: rgba(255,255,255,0.2);
+        }
+        .main-content {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1877f2;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .auth-required {
+            text-align: center;
+            padding: 40px;
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .auth-required h2 {
+            color: #856404;
+            margin-bottom: 15px;
+        }
+        .auth-required p {
+            color: #856404;
+            margin-bottom: 20px;
+        }
+        .btn {
+            background-color: #1877f2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: background-color 0.3s;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .btn:hover {
+            background-color: #166fe5;
+        }
+        .btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .btn.secondary {
+            background-color: #42b883;
+            margin-top: 10px;
+        }
+        .btn.secondary:hover {
+            background-color: #369870;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }
+        .form-group textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 16px;
+            resize: vertical;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #1877f2;
+        }
+        .char-counter {
+            text-align: right;
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .char-counter.warning {
+            color: #ff6b35;
+        }
+        .char-counter.error {
+            color: #dc3545;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1877f2;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .status {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 5px;
+            display: none;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .post-preview {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .post-preview h3 {
+            margin: 0 0 10px 0;
+            color: #495057;
+            font-size: 16px;
+        }
+        .post-preview-content {
+            color: #6c757d;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <nav class="nav-container">
+            <div class="logo">Facebook OAuth App</div>
+            <ul class="nav-menu">
+                <li><a href="/">🏠 Home</a></li>
+                <li><a href="/friends">👥 Friends</a></li>
+                <li><a href="/posts">📝 Posts</a></li>
+                <li><a href="/post" class="active">✍️ Create Post</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <div class="main-content">
+        <div class="container">
+            <h1>Create Facebook Post</h1>
+
+            <div id="authRequired" class="auth-required" style="display: none;">
+                <h2>🔐 Authentication Required</h2>
+                <p>You need to authenticate with Facebook first to create posts.</p>
+                <a href="/" class="btn">Go to Home & Authenticate</a>
+            </div>
+
+            <div class="auth-required" style="margin-bottom: 20px;">
+                <h2>⚠️ Facebook Posting Limitations</h2>
+                <p><strong>Important:</strong> Facebook has strict security restrictions on posting permissions:</p>
+                <ul style="text-align: left; margin: 10px 0;">
+                    <li><strong>Development Apps:</strong> Cannot post to user feeds without special review</li>
+                    <li><strong>Security Measure:</strong> Prevents spam and unauthorized posting</li>
+                    <li><strong>Production Use:</strong> Requires Facebook app review and approval</li>
+                    <li><strong>This Demo:</strong> Will attempt to post but likely show permission errors</li>
+                </ul>
+                <p><small><strong>Educational Purpose:</strong> This feature demonstrates the API integration.
+                In production, you'd need Facebook's approval for posting permissions.</small></p>
+            </div>
+
+            <div id="postForm" style="display: none;">
+                <form id="createPostForm">
+                    <div class="form-group">
+                        <label for="postMessage">What's on your mind?</label>
+                        <textarea
+                            id="postMessage"
+                            name="message"
+                            placeholder="Share your thoughts, experiences, or updates with your friends..."
+                            maxlength="63206"
+                            required></textarea>
+                        <div id="charCounter" class="char-counter">0 / 63206 characters</div>
+                    </div>
+
+                    <div id="postPreview" class="post-preview">
+                        <h3>Preview:</h3>
+                        <div id="postPreviewContent" class="post-preview-content"></div>
+                    </div>
+
+                    <button type="submit" id="submitBtn" class="btn">📤 Post to Facebook</button>
+                    <button type="button" id="previewBtn" class="btn secondary">👁️ Preview Post</button>
+                </form>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Publishing your post to Facebook...</p>
+            </div>
+
+            <div id="status" class="status"></div>
+        </div>
+    </div>
+
+    <script>
+        let hasToken = false;
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.innerHTML = message;
+            status.className = 'status ' + type;
+            status.style.display = 'block';
+        }
+
+        function updateCharCounter() {
+            const textarea = document.getElementById('postMessage');
+            const counter = document.getElementById('charCounter');
+            const length = textarea.value.length;
+            const maxLength = 63206;
+
+            counter.textContent = `${length} / ${maxLength} characters`;
+
+            if (length > maxLength * 0.9) {
+                counter.className = 'char-counter error';
+            } else if (length > maxLength * 0.8) {
+                counter.className = 'char-counter warning';
+            } else {
+                counter.className = 'char-counter';
+            }
+        }
+
+        function showPreview() {
+            const message = document.getElementById('postMessage').value.trim();
+            const preview = document.getElementById('postPreview');
+            const previewContent = document.getElementById('postPreviewContent');
+
+            if (message) {
+                previewContent.textContent = message;
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+
+        function checkAuthentication() {
+            fetch('/api/token/status')
+                .then(response => response.json())
+                .then(data => {
+                    hasToken = data.hasToken;
+                    if (hasToken) {
+                        document.getElementById('postForm').style.display = 'block';
+                        document.getElementById('authRequired').style.display = 'none';
+                    } else {
+                        document.getElementById('authRequired').style.display = 'block';
+                        document.getElementById('postForm').style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    showStatus(`❌ Error checking authentication: ${error.message}`, 'error');
+                });
+        }
+
+        function submitPost(event) {
+            event.preventDefault();
+
+            const message = document.getElementById('postMessage').value.trim();
+            const submitBtn = document.getElementById('submitBtn');
+            const loading = document.getElementById('loading');
+
+            if (!message) {
+                showStatus('❌ Please enter some content for your post', 'error');
+                return;
+            }
+
+            if (!hasToken) {
+                showStatus('❌ Please authenticate with Facebook first', 'error');
+                return;
+            }
+
+            // Show loading state
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            document.getElementById('status').style.display = 'none';
+
+            // Submit to API
+            fetch('/api/post', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message: message })
+            })
+            .then(response => response.json())
+            .then(data => {
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+
+                if (data.success) {
+                    showStatus(`✅ ${data.message}<br><small>Post ID: ${data.postId}</small>`, 'success');
+                    document.getElementById('createPostForm').reset();
+                    document.getElementById('postPreview').style.display = 'none';
+                    updateCharCounter();
+                } else {
+                    showStatus(`❌ ${data.message}<br><small>Error: ${data.error}</small>`, 'error');
+                }
+            })
+            .catch(error => {
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+                showStatus(`❌ Error creating post: ${error.message}`, 'error');
+            });
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthentication();
+
+            const textarea = document.getElementById('postMessage');
+            const form = document.getElementById('createPostForm');
+            const previewBtn = document.getElementById('previewBtn');
+
+            textarea.addEventListener('input', updateCharCounter);
+            textarea.addEventListener('input', showPreview);
+            form.addEventListener('submit', submitPost);
+            previewBtn.addEventListener('click', showPreview);
+
+            updateCharCounter();
+        });
+    </script>
+</body>
+</html>

@@ -219,29 +219,30 @@
                 <li><a href="/">🏠 Home</a></li>
                 <li><a href="/friends">👥 Friends</a></li>
                 <li><a href="/posts" class="active">📝 Posts</a></li>
+                <li><a href="/post">✍️ Create Post</a></li>
             </ul>
         </nav>
     </header>
-    
+
     <div class="main-content">
         <div class="container">
             <h1>Facebook Posts</h1>
-            
+
             <div id="authRequired" class="auth-required" style="display: none;">
                 <h2>🔐 Authentication Required</h2>
                 <p>You need to authenticate with Facebook first to view your posts.</p>
                 <a href="/" class="btn">Go to Home & Authenticate</a>
             </div>
-            
+
             <div id="loading" class="loading" style="display: none;">
                 <div class="spinner"></div>
                 <p>Loading your Facebook posts...</p>
             </div>
-            
+
             <div id="postsContainer">
                 <div id="postsList" class="posts-list"></div>
             </div>
-            
+
             <div id="status" class="status"></div>
         </div>
     </div>
@@ -253,17 +254,17 @@
             status.className = 'status ' + type;
             status.style.display = 'block';
         }
-        
+
         function formatDate(dateString) {
             const date = new Date(dateString);
             return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString();
         }
-        
+
         function loadPosts() {
             const loading = document.getElementById('loading');
             const authRequired = document.getElementById('authRequired');
             const postsList = document.getElementById('postsList');
-            
+
             // Check if we have a token first
             fetch('/api/token/status')
                 .then(response => response.json())
@@ -272,15 +273,15 @@
                         authRequired.style.display = 'block';
                         return;
                     }
-                    
+
                     // We have a token, load posts
                     loading.style.display = 'block';
-                    
+
                     fetch('/api/posts')
                         .then(response => response.json())
                         .then(data => {
                             loading.style.display = 'none';
-                            
+
                             if (data.success) {
                                 displayPosts(data.posts);
                                 showStatus(`✅ Successfully loaded ${data.posts.length} posts`, 'success');
@@ -300,10 +301,10 @@
                     showStatus(`❌ Error checking authentication: ${error.message}`, 'error');
                 });
         }
-        
+
         function displayPosts(posts) {
             const postsList = document.getElementById('postsList');
-            
+
             if (posts.length === 0) {
                 postsList.innerHTML = `
                     <div class="no-posts">
@@ -313,12 +314,12 @@
                 `;
                 return;
             }
-            
+
             postsList.innerHTML = posts.map(post => {
                 const likesCount = post.likes?.summary?.total_count || 0;
                 const commentsCount = post.comments?.summary?.total_count || 0;
                 const sharesCount = post.shares?.count || 0;
-                
+
                 return `
                     <div class="post-card">
                         <div class="post-header">
@@ -330,10 +331,10 @@
                                 <div class="post-time">${formatDate(post.created_time)}</div>
                             </div>
                         </div>
-                        
+
                         ${post.message ? `<div class="post-content">${post.message}</div>` : ''}
                         ${post.story ? `<div class="post-story">${post.story}</div>` : ''}
-                        
+
                         <div class="post-engagement">
                             <div class="engagement-item">
                                 <span class="engagement-icon">👍</span>
@@ -352,7 +353,7 @@
                 `;
             }).join('');
         }
-        
+
         // Load posts when page loads
         document.addEventListener('DOMContentLoaded', loadPosts);
     </script>
