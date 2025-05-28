@@ -124,6 +124,13 @@ class FacebookOAuthController(
         return "friends"
     }
 
+    @GetMapping("/posts")
+    fun postsPage(model: Model): String {
+        model.addAttribute("hasToken", storedAccessToken != null)
+        model.addAttribute("facebookAppId", facebookConfig.app.id)
+        return "posts"
+    }
+
     @GetMapping("/api/friends")
     @ResponseBody
     fun getFriends(): Map<String, Any> {
@@ -151,6 +158,33 @@ class FacebookOAuthController(
         }
     }
 
+    @GetMapping("/api/posts")
+    @ResponseBody
+    fun getPosts(): Map<String, Any> {
+        return if (storedAccessToken != null) {
+            try {
+                val posts = fetchFacebookPosts(storedAccessToken!!)
+                mapOf(
+                    "success" to true,
+                    "posts" to posts,
+                    "message" to "Successfully retrieved posts list"
+                )
+            } catch (e: Exception) {
+                mapOf(
+                    "success" to false,
+                    "error" to (e.message ?: "Unknown error occurred"),
+                    "message" to "Failed to retrieve posts list"
+                )
+            }
+        } else {
+            mapOf(
+                "success" to false,
+                "error" to "No access token available",
+                "message" to "Please authenticate with Facebook first"
+            )
+        }
+    }
+
     @GetMapping("/api/token/status")
     @ResponseBody
     fun getTokenStatus(): Map<String, Any> {
@@ -165,6 +199,26 @@ class FacebookOAuthController(
 
         val response = webClient.get()
             .uri(friendsUrl)
+            .retrieve()
+            .bodyToMono(Map::class.java)
+            .block()
+
+        if (response?.containsKey("error") == true) {
+            val error = response["error"] as? Map<*, *>
+            val errorMessage = error?.get("message") ?: "Unknown Facebook error"
+            throw RuntimeException("Facebook API error: $errorMessage")
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        val data = response?.get("data") as? List<Map<String, Any>> ?: emptyList()
+        return data
+    }
+
+    private fun fetchFacebookPosts(accessToken: String): List<Map<String, Any>> {
+        val postsUrl = "https://graph.facebook.com/v18.0/me/posts?fields=id,message,story,created_time,updated_time,likes.summary(true),comments.summary(true),shares&limit=25&access_token=$accessToken"
+
+        val response = webClient.get()
+            .uri(postsUrl)
             .retrieve()
             .bodyToMono(Map::class.java)
             .block()

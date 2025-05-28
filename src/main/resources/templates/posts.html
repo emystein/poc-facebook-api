@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Facebook Friends - Facebook OAuth App</title>
+    <title>Facebook Posts - Facebook OAuth App</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -113,48 +113,82 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        .friends-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        .posts-list {
+            display: flex;
+            flex-direction: column;
             gap: 20px;
             margin-top: 20px;
         }
-        .friend-card {
+        .post-card {
             background: white;
             border: 1px solid #ddd;
             border-radius: 8px;
             padding: 20px;
-            text-align: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             transition: transform 0.2s;
         }
-        .friend-card:hover {
+        .post-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }
-        .friend-avatar {
-            width: 60px;
-            height: 60px;
+        .post-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .post-avatar {
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
-            margin: 0 auto 15px;
             background-color: #1877f2;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 24px;
             font-weight: bold;
+            margin-right: 12px;
         }
-        .friend-name {
+        .post-meta {
+            flex: 1;
+        }
+        .post-author {
             font-weight: bold;
             color: #333;
-            margin-bottom: 5px;
+            margin-bottom: 2px;
         }
-        .friend-id {
+        .post-time {
             color: #666;
             font-size: 14px;
         }
-        .no-friends {
+        .post-content {
+            margin-bottom: 15px;
+            line-height: 1.5;
+            color: #333;
+        }
+        .post-story {
+            font-style: italic;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        .post-engagement {
+            display: flex;
+            gap: 20px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+            font-size: 14px;
+            color: #666;
+        }
+        .engagement-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .engagement-icon {
+            font-size: 16px;
+        }
+        .no-posts {
             text-align: center;
             padding: 40px;
             color: #666;
@@ -183,31 +217,31 @@
             <div class="logo">Facebook OAuth App</div>
             <ul class="nav-menu">
                 <li><a href="/">🏠 Home</a></li>
-                <li><a href="/friends" class="active">👥 Friends</a></li>
-                <li><a href="/posts">📝 Posts</a></li>
+                <li><a href="/friends">👥 Friends</a></li>
+                <li><a href="/posts" class="active">📝 Posts</a></li>
             </ul>
         </nav>
     </header>
-
+    
     <div class="main-content">
         <div class="container">
-            <h1>Facebook Friends</h1>
-
+            <h1>Facebook Posts</h1>
+            
             <div id="authRequired" class="auth-required" style="display: none;">
                 <h2>🔐 Authentication Required</h2>
-                <p>You need to authenticate with Facebook first to view your friends list.</p>
+                <p>You need to authenticate with Facebook first to view your posts.</p>
                 <a href="/" class="btn">Go to Home & Authenticate</a>
             </div>
-
+            
             <div id="loading" class="loading" style="display: none;">
                 <div class="spinner"></div>
-                <p>Loading your Facebook friends...</p>
+                <p>Loading your Facebook posts...</p>
             </div>
-
-            <div id="friendsContainer">
-                <div id="friendsList" class="friends-list"></div>
+            
+            <div id="postsContainer">
+                <div id="postsList" class="posts-list"></div>
             </div>
-
+            
             <div id="status" class="status"></div>
         </div>
     </div>
@@ -219,12 +253,17 @@
             status.className = 'status ' + type;
             status.style.display = 'block';
         }
-
-        function loadFriends() {
+        
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString();
+        }
+        
+        function loadPosts() {
             const loading = document.getElementById('loading');
             const authRequired = document.getElementById('authRequired');
-            const friendsList = document.getElementById('friendsList');
-
+            const postsList = document.getElementById('postsList');
+            
             // Check if we have a token first
             fetch('/api/token/status')
                 .then(response => response.json())
@@ -233,18 +272,18 @@
                         authRequired.style.display = 'block';
                         return;
                     }
-
-                    // We have a token, load friends
+                    
+                    // We have a token, load posts
                     loading.style.display = 'block';
-
-                    fetch('/api/friends')
+                    
+                    fetch('/api/posts')
                         .then(response => response.json())
                         .then(data => {
                             loading.style.display = 'none';
-
+                            
                             if (data.success) {
-                                displayFriends(data.friends);
-                                showStatus(`✅ Successfully loaded ${data.friends.length} friends`, 'success');
+                                displayPosts(data.posts);
+                                showStatus(`✅ Successfully loaded ${data.posts.length} posts`, 'success');
                             } else {
                                 showStatus(`❌ Error: ${data.error}`, 'error');
                                 if (data.error.includes('token')) {
@@ -254,40 +293,68 @@
                         })
                         .catch(error => {
                             loading.style.display = 'none';
-                            showStatus(`❌ Error loading friends: ${error.message}`, 'error');
+                            showStatus(`❌ Error loading posts: ${error.message}`, 'error');
                         });
                 })
                 .catch(error => {
                     showStatus(`❌ Error checking authentication: ${error.message}`, 'error');
                 });
         }
-
-        function displayFriends(friends) {
-            const friendsList = document.getElementById('friendsList');
-
-            if (friends.length === 0) {
-                friendsList.innerHTML = `
-                    <div class="no-friends">
-                        <h3>No friends found</h3>
-                        <p>Your Facebook friends list appears to be empty, or your friends have restricted access to their information.</p>
+        
+        function displayPosts(posts) {
+            const postsList = document.getElementById('postsList');
+            
+            if (posts.length === 0) {
+                postsList.innerHTML = `
+                    <div class="no-posts">
+                        <h3>No posts found</h3>
+                        <p>You haven't made any posts yet, or your posts are not accessible through the API.</p>
                     </div>
                 `;
                 return;
             }
-
-            friendsList.innerHTML = friends.map(friend => `
-                <div class="friend-card">
-                    <div class="friend-avatar">
-                        ${friend.name ? friend.name.charAt(0).toUpperCase() : '?'}
+            
+            postsList.innerHTML = posts.map(post => {
+                const likesCount = post.likes?.summary?.total_count || 0;
+                const commentsCount = post.comments?.summary?.total_count || 0;
+                const sharesCount = post.shares?.count || 0;
+                
+                return `
+                    <div class="post-card">
+                        <div class="post-header">
+                            <div class="post-avatar">
+                                📝
+                            </div>
+                            <div class="post-meta">
+                                <div class="post-author">You</div>
+                                <div class="post-time">${formatDate(post.created_time)}</div>
+                            </div>
+                        </div>
+                        
+                        ${post.message ? `<div class="post-content">${post.message}</div>` : ''}
+                        ${post.story ? `<div class="post-story">${post.story}</div>` : ''}
+                        
+                        <div class="post-engagement">
+                            <div class="engagement-item">
+                                <span class="engagement-icon">👍</span>
+                                <span>${likesCount} likes</span>
+                            </div>
+                            <div class="engagement-item">
+                                <span class="engagement-icon">💬</span>
+                                <span>${commentsCount} comments</span>
+                            </div>
+                            <div class="engagement-item">
+                                <span class="engagement-icon">🔄</span>
+                                <span>${sharesCount} shares</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="friend-name">${friend.name || 'Unknown'}</div>
-                    <div class="friend-id">ID: ${friend.id}</div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
-
-        // Load friends when page loads
-        document.addEventListener('DOMContentLoaded', loadFriends);
+        
+        // Load posts when page loads
+        document.addEventListener('DOMContentLoaded', loadPosts);
     </script>
 </body>
 </html>
